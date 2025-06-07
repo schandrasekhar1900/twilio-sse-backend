@@ -25,19 +25,19 @@ app.get('/events', (req, res) => {
 });
 
 app.post('/status-callback', (req, res) => {
-  const { sid, status, to } = req.body;
+  const { MessageSid, MessageStatus, To } = req.body;
 
-  if (!sid || !status || !to) {
-    console.error('❌ Invalid payload received from Twilio Function:', req.body);
-    return res.status(400).send('Bad Request');
+  if (!MessageSid || !MessageStatus || !To) {
+    console.error('❌ Invalid payload:', req.body);
+    return res.status(400).send('Bad Request: Missing fields');
   }
 
-  console.log(`📬 Twilio Status: ${sid} -> ${status} for ${to}`);
+  console.log(`📬 Twilio Status: ${MessageSid} -> ${MessageStatus} for ${To}`);
 
   const payload = JSON.stringify({
-    sid,
-    status: status.toLowerCase(),
-    to
+    sid: MessageSid,
+    status: MessageStatus.toLowerCase(),
+    to: To
   });
 
   clients.forEach(client => client.write(`data: ${payload}\n\n`));
