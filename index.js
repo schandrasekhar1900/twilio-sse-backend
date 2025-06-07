@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
 
 let clients = [];
 
@@ -10,28 +13,31 @@ app.get('/events', (req, res) => {
   res.set({
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
+    'Connection': 'keep-alive'
   });
   res.flushHeaders();
 
   clients.push(res);
-  console.log('👂 Client connected to /events');
 
   req.on('close', () => {
-    console.log('❌ Client disconnected from /events');
     clients = clients.filter(client => client !== res);
   });
 });
 
 app.post('/status-callback', (req, res) => {
-  const { MessageSid, MessageStatus, To } = req.body;
+  const { sid, status, to } = req.body;
 
-  console.log(`📬 Twilio Status: ${MessageSid} -> ${MessageStatus} for ${To}`);
+  if (!sid || !status || !to) {
+    console.error('❌ Invalid payload received from Twilio Function:', req.body);
+    return res.status(400).send('Bad Request');
+  }
+
+  console.log(`📬 Twilio Status: ${sid} -> ${status} for ${to}`);
 
   const payload = JSON.stringify({
-    sid: MessageSid,
-    status: MessageStatus.toLowerCase(),
-    to: To
+    sid,
+    status: status.toLowerCase(),
+    to
   });
 
   clients.forEach(client => client.write(`data: ${payload}\n\n`));
@@ -39,5 +45,4 @@ app.post('/status-callback', (req, res) => {
   res.status(200).send('OK');
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
