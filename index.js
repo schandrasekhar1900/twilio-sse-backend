@@ -1,6 +1,36 @@
+const express = require('express');
+const cors = require('cors');
+const app = express();
+const PORT = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.urlencoded({ extended: true })); // ✅ For Twilio x-www-form-urlencoded
 app.use(express.json()); // ✅ For JSON payloads from your own app
+
+// ←–– Create your in-memory list of SSE connections
+let clients = [];
+
+// ←–– NEW: SSE endpoint
+app.get('/events', (req, res) => {
+  // 1) Tell the browser this is an event-stream
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  res.flushHeaders();
+
+  // 2) Add this connection to our list
+  clients.push(res);
+  console.log(`👂 SSE client connected, total: ${clients.length}`);
+
+  // 3) When they disconnect, remove them
+  req.on('close', () => {
+    clients = clients.filter(c => c !== res);
+    console.log(`❌ SSE client disconnected, remaining: ${clients.length}`);
+  });
+});
 
 app.post('/status-callback', (req, res) => {
   console.log('\n📩 === Incoming /status-callback ===');
@@ -74,4 +104,10 @@ app.post('/status-callback', (req, res) => {
 
   console.log('✅ Callback handled successfully.\n');
   res.status(200).send('OK');
+});
+
+
+// ←–– Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 SSE + status-callback server listening on port ${PORT}`);
 });
