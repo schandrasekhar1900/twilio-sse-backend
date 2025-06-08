@@ -1,6 +1,11 @@
+app.use(cors());
+app.use(express.urlencoded({ extended: true })); // ✅ For Twilio x-www-form-urlencoded
+app.use(express.json()); // ✅ For JSON payloads from your own app
+
 app.post('/status-callback', (req, res) => {
   console.log('\n📩 === Incoming /status-callback ===');
   console.log('🕓 Time:', new Date().toISOString());
+  console.log('📭 Incoming headers:', req.headers);
   console.log('📦 Raw Body:', JSON.stringify(req.body, null, 2));
 
   const body = req.body;
