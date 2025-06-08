@@ -68,7 +68,7 @@ app.post('/status-callback', (req, res) => {
     try {
       client.write(ssePayload);
     } catch (err) {
-      console.error('⚠️ Error writing to SSE client:', err.message);
+      console.error('🔥 Error writing to SSE client:', err.message);
     }
   });
 
