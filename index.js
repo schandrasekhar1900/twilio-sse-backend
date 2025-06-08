@@ -33,69 +33,49 @@ app.get('/events', (req, res) => {
 });
 
 app.post('/status-callback', (req, res) => {
-  console.log('\n📩 Incoming /status-callback:', JSON.stringify(req.body, null, 2));
+  console.log('📩 Raw Twilio webhook:', req.body);
 
-  const body = req.body || {};
-  let payload, type, rawStatus;
+  const b = req.body;
+  let payload, type, raw;
 
-  if (body.type && body.sid && body.status) {
-    // ─── Forwarded JSON (from your Twilio Function) ─────────
-    console.log('✅ Detected forwarded JSON payload');
-    type      = body.type;        // 'sms' or 'voice'
-    rawStatus = body.status;
-    payload   = {
+  if (b.MessageSid) {
+    type = 'sms';
+    raw  = b.MessageStatus;
+    payload = {
       type,
-      sid:      body.sid,
-      status:   String(rawStatus).toLowerCase(),
-      to:       body.to,
-      from:     body.from,
+      sid:    b.MessageSid,
+      status: (raw||'').toLowerCase(),
+      to:     b.To,
+      from:   b.From,
       timestamp: new Date().toISOString()
     };
   }
-  else if (body.MessageSid) {
-    // ─── Legacy SMS webhook ────────────────────────────────
-    console.log('✅ Detected legacy SMS webhook');
-    type      = 'sms';
-    rawStatus = body.MessageStatus;
-    payload   = {
+  else if (b.CallSid) {
+    type = 'voice';
+    raw  = b.CallStatus;
+    payload = {
       type,
-      sid:      body.MessageSid,
-      status:   String(rawStatus || '').toLowerCase(),
-      to:       body.To,
-      from:     body.From || 'N/A',
-      timestamp: new Date().toISOString()
-    };
-  }
-  else if (body.CallSid) {
-    // ─── Legacy Voice webhook ──────────────────────────────
-    console.log('✅ Detected legacy Voice webhook');
-    type      = 'voice';
-    rawStatus = body.CallStatus;
-    payload   = {
-      type,
-      sid:      body.CallSid,
-      status:   String(rawStatus || '').toLowerCase(),
-      to:       body.To,
-      from:     body.From || 'N/A',
+      sid:    b.CallSid,
+      status: (raw||'').toLowerCase(),
+      to:     b.To,
+      from:   b.From,
       timestamp: new Date().toISOString()
     };
   }
   else {
-    console.error('❌ Unrecognized callback format –', body);
-    return res.status(400).send('Bad Request: Unknown format');
+    console.warn('⚠️ Unknown Twilio webhook:', b);
+    return res.sendStatus(400);
   }
 
-  console.log(`📬 ${type.toUpperCase()} → SID: ${payload.sid}, status: ${payload.status}, to: ${payload.to}`);
+  console.log(`📬 ${type.toUpperCase()} callback →`, payload);
 
-  // now broadcast to SSE clients
-  const sseData = `data: ${JSON.stringify(payload)}\n\n`;
-  clients.forEach(c => {
-    try { c.write(sseData); }
-    catch (err) { console.error('🔥 SSE write error:', err.message); }
-  });
+  // broadcast via SSE
+  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  clients.forEach(c => c.write(msg));
 
   res.sendStatus(200);
 });
+
 
 
 // ←–– Start the server
