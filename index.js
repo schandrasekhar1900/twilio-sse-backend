@@ -8,7 +8,7 @@ app.post('/status-callback', (req, res) => {
   console.log('📭 Incoming headers:', req.headers);
   console.log('📦 Raw Body:', JSON.stringify(req.body, null, 2));
 
-  const body = req.body;
+  const body = req.body || {};
   let payload = {};
   let type = "";
 
@@ -20,7 +20,7 @@ app.post('/status-callback', (req, res) => {
     payload = {
       type,
       sid: body.MessageSid,
-      status: (body.MessageStatus || 'unknown').toLowerCase(),
+      status: typeof body.MessageStatus === 'string' ? body.MessageStatus.toLowerCase() : 'unknown',
       to: body.To,
       from: body.From || 'N/A',
       timestamp: new Date().toISOString()
@@ -41,7 +41,7 @@ app.post('/status-callback', (req, res) => {
     payload = {
       type,
       sid: body.CallSid,
-      status: (body.CallStatus || 'unknown').toLowerCase(),
+      status: typeof body.CallStatus === 'string' ? body.CallStatus.toLowerCase() : 'unknown',
       to: body.To,
       from: body.From || 'N/A',
       timestamp: new Date().toISOString()
