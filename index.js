@@ -38,10 +38,10 @@ app.post('/status-callback', (req, res) => {
   let payload;
 
   if (b.type && b.sid && b.status) {
-    // ←– Handle your forwarded JSON
+    // Forwarded custom JSON payload (e.g. from a Twilio Function)
     console.log('✅ Detected forwarded JSON payload');
     payload = {
-      type:      b.type,                  // "sms" or "voice"
+      type:      b.type,
       sid:       b.sid,
       status:    String(b.status).toLowerCase(),
       to:        b.to,
@@ -50,26 +50,30 @@ app.post('/status-callback', (req, res) => {
     };
   }
   else if (b.MessageSid) {
-    // ←– Legacy SMS webhook
-    console.log('✅ Detected legacy SMS webhook');
+    // SMS or WhatsApp
+    const from = b.From || 'N/A';
+    const to = b.To || 'N/A';
+    const isWhatsApp = from.startsWith('whatsapp:') || to.startsWith('whatsapp:');
+
     payload = {
-      type:      'sms',
+      type:      isWhatsApp ? 'whatsapp' : 'sms',
       sid:       b.MessageSid,
-      status:    String(b.MessageStatus||'').toLowerCase(),
-      to:        b.To,
-      from:      b.From||'N/A',
+      status:    String(b.MessageStatus || '').toLowerCase(),
+      to,
+      from,
       timestamp: new Date().toISOString()
     };
+    console.log(`✅ Detected ${isWhatsApp ? 'WhatsApp' : 'SMS'} webhook`);
   }
   else if (b.CallSid) {
-    // ←– Legacy Voice webhook
+    // Voice
     console.log('✅ Detected legacy Voice webhook');
     payload = {
       type:      'voice',
       sid:       b.CallSid,
-      status:    String(b.CallStatus||'').toLowerCase(),
+      status:    String(b.CallStatus || '').toLowerCase(),
       to:        b.To,
-      from:      b.From||'N/A',
+      from:      b.From || 'N/A',
       timestamp: new Date().toISOString()
     };
   }
@@ -83,6 +87,7 @@ app.post('/status-callback', (req, res) => {
   clients.forEach(c => c.write(msg));
   res.sendStatus(200);
 });
+
 
 
 
