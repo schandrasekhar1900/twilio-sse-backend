@@ -1,59 +1,72 @@
-const express = require('express');
-const cors = require('cors');
-const app = express();
-
-// ✅ Middleware
-app.use(cors());
-app.use(express.urlencoded({ extended: true })); // Handles Twilio's x-www-form-urlencoded
-app.use(express.json());
-
-const PORT = process.env.PORT || 3000;
-let clients = [];
-
-// ✅ SSE endpoint for frontend to connect to
-app.get('/events', (req, res) => {
-  res.set({
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
-  res.flushHeaders();
-
-  console.log('👂 New frontend client connected to /events');
-  clients.push(res);
-
-  req.on('close', () => {
-    console.log('❌ Frontend client disconnected');
-    clients = clients.filter(client => client !== res);
-  });
-});
-
-// ✅ POST endpoint to receive status updates from Twilio Function
 app.post('/status-callback', (req, res) => {
-  console.log('📩 Incoming /status-callback POST body:', req.body);
+  console.log('\n📩 === Incoming /status-callback ===');
+  console.log('🕓 Time:', new Date().toISOString());
+  console.log('📦 Raw Body:', JSON.stringify(req.body, null, 2));
 
-  const { MessageSid, MessageStatus, To } = req.body;
+  const body = req.body;
+  let payload = {};
+  let type = "";
 
-  if (!MessageSid || !MessageStatus || !To) {
-    console.error('❌ Missing expected fields in body:', {
-      MessageSid,
-      MessageStatus,
-      To
-    });
-    return res.status(400).send('Missing required fields');
+  if (body.MessageSid) {
+    // 📨 Handling SMS status update
+    console.log('✅ Detected SMS callback');
+    type = "sms";
+
+    payload = {
+      type,
+      sid: body.MessageSid,
+      status: (body.MessageStatus || 'unknown').toLowerCase(),
+      to: body.To,
+      from: body.From || 'N/A',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📝 SMS Status Extracted:
+      SID: ${payload.sid}
+      To: ${payload.to}
+      From: ${payload.from}
+      Status: ${payload.status}`);
   }
 
-  console.log(`📬 Twilio Status: ${MessageSid} -> ${MessageStatus} for ${To}`);
+  else if (body.CallSid) {
+    // 📞 Handling Voice status update
+    console.log('✅ Detected Voice callback');
+    type = "voice";
 
-  const payload = JSON.stringify({
-    sid: MessageSid,
-    status: MessageStatus.toLowerCase(),
-    to: To
+    payload = {
+      type,
+      sid: body.CallSid,
+      status: (body.CallStatus || 'unknown').toLowerCase(),
+      to: body.To,
+      from: body.From || 'N/A',
+      timestamp: new Date().toISOString()
+    };
+
+    console.log(`📝 Voice Call Status Extracted:
+      SID: ${payload.sid}
+      To: ${payload.to}
+      From: ${payload.from}
+      Status: ${payload.status}`);
+  }
+
+  else {
+    console.error('❌ Unrecognized status callback format. Missing MessageSid or CallSid.');
+    console.log('🔎 Body was:', JSON.stringify(body, null, 2));
+    return res.status(400).send('Missing required identifiers (MessageSid or CallSid)');
+  }
+
+  // Broadcast to all active clients
+  const ssePayload = `data: ${JSON.stringify(payload)}\n\n`;
+  console.log(`📡 Broadcasting to ${clients.length} client(s):`, ssePayload);
+
+  clients.forEach(client => {
+    try {
+      client.write(ssePayload);
+    } catch (err) {
+      console.error('⚠️ Error writing to SSE client:', err.message);
+    }
   });
 
-  clients.forEach(client => client.write(`data: ${payload}\n\n`));
+  console.log('✅ Callback handled successfully.\n');
   res.status(200).send('OK');
 });
-
-// ✅ Start the server
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
